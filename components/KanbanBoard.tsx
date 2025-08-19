@@ -6,6 +6,7 @@ import { Lead, LeadStatus } from '@/lib/types';
 import { Filter, X } from 'lucide-react';
 import DroppableColumn from './DroppableColumn';
 import AddLeadModal from './AddLeadModal';
+import WhatsAppCampaign from './WhatsAppCampaign';
 
 // Organize leads by status for the kanban structure
 const createColumnsFromLeads = (leads: Lead[]) => {
@@ -35,6 +36,7 @@ const Kanban = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalStatus, setModalStatus] = useState<LeadStatus>('lista_leads');
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [isCampaignOpen, setIsCampaignOpen] = useState(false);
 
   useEffect(() => {
     fetchLeads();
@@ -125,6 +127,16 @@ const Kanban = () => {
     } catch (error) {
       console.error('Error updating lead:', error);
     }
+  };
+
+  const handleLeadStatusUpdate = (leadId: number, newStatus: string) => {
+    setLeads(prev =>
+      prev.map(lead => 
+        lead.id === leadId 
+          ? { ...lead, status: newStatus as any }
+          : lead
+      )
+    );
   };
 
 
@@ -231,15 +243,28 @@ const Kanban = () => {
               </p>
             </div>
             
-            <button
-              onClick={() => handleOpenModal('lista_leads')}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl font-medium"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Novo Lead
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsCampaignOpen(true)}
+                disabled={getLeadsByStatus('lista_leads').length === 0}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-lg hover:shadow-xl font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Campanha WhatsApp
+              </button>
+              
+              <button
+                onClick={() => handleOpenModal('lista_leads')}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl font-medium"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Novo Lead
+              </button>
+            </div>
           </div>
             
           {/* Statistics Cards */}
@@ -360,6 +385,14 @@ const Kanban = () => {
         onLeadAdded={handleLeadAdded}
         initialStatus={modalStatus}
         editingLead={editingLead}
+      />
+
+      {/* WhatsApp Campaign Modal */}
+      <WhatsAppCampaign
+        leads={getLeadsByStatus('lista_leads')}
+        onClose={() => setIsCampaignOpen(false)}
+        isOpen={isCampaignOpen}
+        onLeadStatusUpdate={handleLeadStatusUpdate}
       />
     </div>
   );
