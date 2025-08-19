@@ -1,49 +1,43 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { DndContext, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { Lead, LeadStatus, KanbanColumn as KanbanColumnType } from '@/lib/types';
-import KanbanColumn from './KanbanColumn';
+import React, { useState, useEffect } from 'react';
+import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { Lead, LeadStatus } from '@/lib/types';
+import { Filter, X } from 'lucide-react';
+import DroppableColumn from './DroppableColumn';
 import AddLeadModal from './AddLeadModal';
 
-const columns: Omit<KanbanColumnType, 'leads'>[] = [
-  { id: 'lista_leads', title: 'Lista de leads', emoji: '📌' },
-  { id: 'primeiro_contato', title: 'Primeiro contato', emoji: '💬' },
-  { id: 'follow_up', title: 'Follow-up', emoji: '⏳' },
-  { id: 'interessados', title: 'Interessados', emoji: '🤝' },
-  { id: 'reuniao_agendada', title: 'Reunião agendada', emoji: '📅' },
-  { id: 'fechados', title: 'Fechados', emoji: '✅' },
-  { id: 'perdidos', title: 'Perdidos', emoji: '❌' }
-];
+// Organize leads by status for the kanban structure
+const createColumnsFromLeads = (leads: Lead[]) => {
+  const columnData = {
+    'lista_leads': { title: 'Lista de leads', emoji: '📌', items: [] as Lead[] },
+    'primeiro_contato': { title: 'Primeiro contato', emoji: '💬', items: [] as Lead[] },
+    'follow_up': { title: 'Follow-up', emoji: '⏳', items: [] as Lead[] },
+    'interessados': { title: 'Interessados', emoji: '🤝', items: [] as Lead[] },
+    'reuniao_agendada': { title: 'Reunião agendada', emoji: '📅', items: [] as Lead[] },
+    'fechados': { title: 'Fechados', emoji: '✅', items: [] as Lead[] },
+    'perdidos': { title: 'Perdidos', emoji: '❌', items: [] as Lead[] }
+  };
 
-export default function KanbanBoard() {
+  leads.forEach(lead => {
+    if (columnData[lead.status]) {
+      columnData[lead.status].items.push(lead);
+    }
+  });
+
+  return columnData;
+};
+
+const Kanban = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [selectedNicho, setSelectedNicho] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalStatus, setModalStatus] = useState<LeadStatus>('lista_leads');
-  const [activeTab, setActiveTab] = useState<LeadStatus>('lista_leads');
-  const [isMobile, setIsMobile] = useState(false);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    })
-  );
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
 
   useEffect(() => {
     fetchLeads();
-    
-    // Check if mobile on mount and resize
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   const fetchLeads = async () => {
@@ -59,6 +53,14 @@ export default function KanbanBoard() {
       setLoading(false);
     }
   };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
@@ -125,156 +127,242 @@ export default function KanbanBoard() {
     }
   };
 
-  const handleDeleteLead = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir este lead?')) return;
 
+  const handleOpenModal = (status: LeadStatus) => {
+    setModalStatus(status);
+    setEditingLead(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditLead = (lead: Lead) => {
+    setEditingLead(lead);
+    setModalStatus(lead.status);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteLead = async (leadId: number) => {
     try {
-      const response = await fetch(`/api/leads/${id}`, {
+      const response = await fetch(`/api/leads/${leadId}`, {
         method: 'DELETE',
       });
 
       if (response.ok) {
-        setLeads(prev => prev.filter(lead => lead.id !== id));
+        setLeads(prev => prev.filter(lead => lead.id !== leadId));
+      } else {
+        console.error('Failed to delete lead');
       }
     } catch (error) {
       console.error('Error deleting lead:', error);
     }
   };
 
-  const handleOpenModal = (status: LeadStatus) => {
-    setModalStatus(status);
-    setIsModalOpen(true);
+  const getLeadsByStatus = (status: LeadStatus) => {
+    let filteredLeads = leads.filter(lead => lead.status === status);
+    
+    if (selectedNicho) {
+      filteredLeads = filteredLeads.filter(lead => 
+        lead.nicho?.toLowerCase() === selectedNicho.toLowerCase()
+      );
+    }
+    
+    return filteredLeads;
   };
 
-  const getLeadsByStatus = (status: LeadStatus) => {
-    return leads.filter(lead => lead.status === status);
+  // Extrair nichos únicos dos leads existentes
+  const getUniqueNichos = () => {
+    const nichos = leads
+      .map(lead => lead.nicho)
+      .filter(nicho => nicho && nicho.trim() !== '')
+      .map(nicho => nicho!.trim());
+    
+    return [...new Set(nichos)].sort();
   };
 
   const getTotalLeads = () => leads.length;
   const getClosedLeads = () => leads.filter(lead => lead.status === 'fechados').length;
+  const getLostLeads = () => leads.filter(lead => lead.status === 'perdidos').length;
   const getConversionRate = () => {
     const total = getTotalLeads();
     const closed = getClosedLeads();
     return total > 0 ? ((closed / total) * 100).toFixed(1) : '0';
   };
 
+  const handleLeadAdded = () => {
+    fetchLeads();
+    setIsModalOpen(false);
+    setEditingLead(null);
+  };
+
+  const columns = [
+    { id: 'lista_leads', title: 'Lista de leads', emoji: '📌' },
+    { id: 'primeiro_contato', title: 'Primeiro contato', emoji: '💬' },
+    { id: 'follow_up', title: 'Follow-up', emoji: '⏳' },
+    { id: 'interessados', title: 'Interessados', emoji: '🤝' },
+    { id: 'reuniao_agendada', title: 'Reunião agendada', emoji: '📅' },
+    { id: 'fechados', title: 'Fechados', emoji: '✅' },
+    { id: 'perdidos', title: 'Perdidos', emoji: '❌' }
+  ];
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando leads...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Carregando leads...</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
                 🎯 Prospecção SaaS - Kanban
               </h1>
-              <p className="text-gray-600 text-sm mt-1">
+              <p className="text-gray-600">
                 Gerencie seu funil de vendas de forma visual e eficiente
               </p>
             </div>
-            <div className="flex gap-4 sm:gap-6 text-sm w-full sm:w-auto justify-between sm:justify-end">
-              <div className="text-center">
-                <div className="text-xl sm:text-2xl font-bold text-blue-600">{getTotalLeads()}</div>
-                <div className="text-gray-600 text-xs sm:text-sm">Total Leads</div>
+            
+            <button
+              onClick={() => handleOpenModal('lista_leads')}
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl font-medium"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Novo Lead
+            </button>
+          </div>
+            
+          {/* Statistics Cards */}
+          <div className="flex flex-wrap gap-4">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 rounded-xl shadow-lg">
+              <div className="text-2xl font-bold">
+                {selectedNicho 
+                  ? Object.values(columns).reduce((total, col) => total + getLeadsByStatus(col.id as LeadStatus).length, 0)
+                  : getTotalLeads()
+                }
               </div>
-              <div className="text-center">
-                <div className="text-xl sm:text-2xl font-bold text-green-600">{getClosedLeads()}</div>
-                <div className="text-gray-600 text-xs sm:text-sm">Fechados</div>
+              <div className="text-blue-100 text-sm">
+                {selectedNicho ? 'Leads Filtrados' : 'Total Leads'}
               </div>
-              <div className="text-center">
-                <div className="text-xl sm:text-2xl font-bold text-purple-600">{getConversionRate()}%</div>
-                <div className="text-gray-600 text-xs sm:text-sm">Conversão</div>
+            </div>
+            <div className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-xl shadow-lg">
+              <div className="text-2xl font-bold">{getLeadsByStatus('fechados').length}</div>
+              <div className="text-green-100 text-sm">Fechados</div>
+            </div>
+            <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-6 py-4 rounded-xl shadow-lg">
+              <div className="text-2xl font-bold">
+                {selectedNicho 
+                  ? (() => {
+                      const totalFiltered = Object.values(columns).reduce((total, col) => total + getLeadsByStatus(col.id as LeadStatus).length, 0);
+                      return totalFiltered > 0 ? Math.round((getLeadsByStatus('fechados').length / totalFiltered) * 100) : 0;
+                    })()
+                  : getConversionRate()
+                }%
               </div>
+              <div className="text-purple-100 text-sm">Conversão</div>
+            </div>
+            <div className="bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-xl shadow-lg">
+              <div className="text-2xl font-bold">{getLeadsByStatus('perdidos').length}</div>
+              <div className="text-red-100 text-sm">Perdidos</div>
             </div>
           </div>
         </div>
+        
+        {/* Filtro por Nicho */}
+        {getUniqueNichos().length > 0 && (
+          <div className="bg-white border-t border-gray-200 px-6 py-4">
+            <div className="max-w-7xl mx-auto">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-700">Filtrar por nicho:</span>
+                </div>
+                
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => setSelectedNicho(null)}
+                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                      selectedNicho === null
+                        ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Todos
+                  </button>
+                  
+                  {getUniqueNichos().map((nicho) => (
+                    <button
+                      key={nicho}
+                      onClick={() => setSelectedNicho(nicho)}
+                      className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                        selectedNicho === nicho
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {nicho}
+                    </button>
+                  ))}
+                </div>
+                
+                {selectedNicho && (
+                  <button
+                    onClick={() => setSelectedNicho(null)}
+                    className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Limpar filtro"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Mobile Tabs */}
-      {isMobile && (
-        <div className="bg-white border-b overflow-x-auto">
-          <div className="flex min-w-max">
+      {/* Kanban Board */}
+      <div className="p-6">
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <div className="flex gap-6 overflow-x-auto pb-6">
             {columns.map((column) => (
-              <button
+              <DroppableColumn
                 key={column.id}
-                onClick={() => setActiveTab(column.id)}
-                className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === column.id
-                    ? 'border-blue-500 text-blue-600 bg-blue-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <span className="mr-2">{column.emoji}</span>
-                {column.title}
-                <span className="ml-2 bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full">
-                  {getLeadsByStatus(column.id).length}
-                </span>
-              </button>
+                id={column.id as LeadStatus}
+                title={column.title}
+                emoji={column.emoji}
+                leads={getLeadsByStatus(column.id as LeadStatus)}
+                onAddLead={() => handleOpenModal(column.id as LeadStatus)}
+                onDeleteLead={handleDeleteLead}
+                onEditLead={handleEditLead}
+              />
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Kanban Board */}
-      <div className="p-4 sm:p-6">
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          {isMobile ? (
-            // Mobile: Single Column View with Tabs
-            <div className="w-full">
-              {columns
-                .filter(column => column.id === activeTab)
-                .map((column) => (
-                  <div key={column.id} className="w-full">
-                    <KanbanColumn
-                      id={column.id}
-                      title={column.title}
-                      emoji={column.emoji}
-                      leads={getLeadsByStatus(column.id)}
-                      onUpdate={handleUpdateLead}
-                      onDelete={handleDeleteLead}
-                      onAddLead={handleOpenModal}
-                    />
-                  </div>
-                ))}
-            </div>
-          ) : (
-            // Desktop: Full Kanban Board
-            <div className="flex gap-4 overflow-x-auto pb-4">
-              {columns.map((column) => (
-                <KanbanColumn
-                  key={column.id}
-                  id={column.id}
-                  title={column.title}
-                  emoji={column.emoji}
-                  leads={getLeadsByStatus(column.id)}
-                  onUpdate={handleUpdateLead}
-                  onDelete={handleDeleteLead}
-                  onAddLead={handleOpenModal}
-                />
-              ))}
-            </div>
-          )}
         </DndContext>
       </div>
 
       {/* Add Lead Modal */}
       <AddLeadModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onAdd={handleAddLead}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingLead(null);
+        }}
+        onLeadAdded={handleLeadAdded}
         initialStatus={modalStatus}
+        editingLead={editingLead}
       />
     </div>
   );
-}
+};
+
+export default Kanban;

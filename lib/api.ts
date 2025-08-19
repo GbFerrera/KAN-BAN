@@ -45,22 +45,46 @@ export const updateLeadStatus = async (id: number, status: LeadStatus): Promise<
 export const updateLead = async (id: number, updates: Partial<Lead>): Promise<Lead> => {
   const client = await pool.connect();
   try {
+    console.log('Updating lead with ID:', id, 'Updates:', updates); // Debug log
+    
     const fields = Object.keys(updates).filter(key => key !== 'id' && key !== 'created_at' && key !== 'updated_at');
     const values = fields.map(field => {
       const value = updates[field as keyof Lead];
       // Convert datetime-local format to proper timestamp for meeting_date
-      if (field === 'meeting_date' && value) {
-        return new Date(value as string).toISOString();
+      if (field === 'meeting_date') {
+        if (!value || value === '') return null;
+        try {
+          return new Date(value as string).toISOString();
+        } catch (e) {
+          console.error('Error parsing meeting_date:', value, e);
+          return null;
+        }
       }
       return value;
     });
+    
+    if (fields.length === 0) {
+      throw new Error('No fields to update');
+    }
+    
     const setClause = fields.map((field, index) => `${field} = $${index + 1}`).join(', ');
+    
+    console.log('SQL Query:', `UPDATE leads SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = $${fields.length + 1} RETURNING *`);
+    console.log('Values:', [...values, id]);
     
     const result = await client.query(
       `UPDATE leads SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = $${fields.length + 1} RETURNING *`,
       [...values, id]
     );
+    
+    if (result.rows.length === 0) {
+      throw new Error(`Lead with ID ${id} not found`);
+    }
+    
     return result.rows[0];
+  } catch (error) {
+    console.error('Error in updateLead:', error);
+    throw error;
   } finally {
     client.release();
   }

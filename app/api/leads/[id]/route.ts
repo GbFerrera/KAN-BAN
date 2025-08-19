@@ -9,6 +9,8 @@ export async function PUT(
     const id = parseInt(params.id);
     const body = await request.json();
     
+    console.log('PUT request received for lead ID:', id, 'Body:', body); // Debug log
+    
     if (body.status && Object.keys(body).length === 1) {
       // Only updating status (for drag and drop)
       const lead = await updateLeadStatus(id, body.status);
@@ -20,7 +22,10 @@ export async function PUT(
     }
   } catch (error) {
     console.error('Error updating lead:', error);
-    return NextResponse.json({ error: 'Failed to update lead' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Failed to update lead', 
+      details: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 });
   }
 }
 
