@@ -59,9 +59,17 @@ export default function LeadCard({ lead, onUpdate, onDelete }: LeadCardProps) {
   };
 
   const getContactIcon = (contato: string) => {
-    if (contato.includes('@')) return <Mail className="w-3 h-3" />;
-    if (contato.includes('whatsapp') || contato.includes('wa.me')) return <MessageCircle className="w-3 h-3" />;
-    return <Phone className="w-3 h-3" />;
+    switch (contato) {
+      case 'WhatsApp': return '📱';
+      case 'Instagram': return '📸';
+      case 'Email': return '📧';
+      case 'Facebook': return '📘';
+      case 'LinkedIn': return '💼';
+      case 'Telefone': return '☎️';
+      case 'Site': return '🌐';
+      case 'Indicação': return '🤝';
+      default: return <Phone className="w-3 h-3" />;
+    }
   };
 
   const handleStatusChange = (newStatus: LeadStatus) => {
@@ -88,13 +96,21 @@ export default function LeadCard({ lead, onUpdate, onDelete }: LeadCardProps) {
           placeholder="Nicho (ex: restaurante, clínica)"
         />
         
-        <input
-          type="text"
+        <select
           value={editData.contato}
           onChange={(e) => setEditData({ ...editData, contato: e.target.value })}
           className="w-full p-2 border rounded text-sm"
-          placeholder="Contato (WhatsApp/Instagram/email)"
-        />
+        >
+          <option value="">Selecione o meio de contato</option>
+          <option value="WhatsApp">📱 WhatsApp</option>
+          <option value="Instagram">📸 Instagram</option>
+          <option value="Email">📧 Email</option>
+          <option value="Facebook">📘 Facebook</option>
+          <option value="LinkedIn">💼 LinkedIn</option>
+          <option value="Telefone">☎️ Telefone</option>
+          <option value="Site">🌐 Site</option>
+          <option value="Indicação">🤝 Indicação</option>
+        </select>
         
         <input
           type="date"
@@ -134,6 +150,15 @@ export default function LeadCard({ lead, onUpdate, onDelete }: LeadCardProps) {
           rows={2}
           placeholder="Observações (ex: quer ver demo semana que vem)"
         />
+        
+        {(lead.user || lead.user_id) && (
+          <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
+            <span className="font-medium">
+              Criado por: {lead.user ? lead.user.nome : `Usuário #${lead.user_id}`}
+            </span>
+            {lead.user?.role === 'gestor' && <span className="ml-1">👑</span>}
+          </div>
+        )}
         
         <div className="flex gap-2">
           <button
@@ -236,6 +261,13 @@ export default function LeadCard({ lead, onUpdate, onDelete }: LeadCardProps) {
         <div className="text-xs text-gray-500">
           1º contato: {new Date(lead.data_primeiro_contato).toLocaleDateString('pt-BR')}
         </div>
+        
+        {lead.user && (
+          <div className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
+            <span className="font-medium">👤 {lead.user.nome}</span>
+            {lead.user.role === 'gestor' && <span className="text-xs">👑</span>}
+          </div>
+        )}
         
         {lead.status === 'reuniao_agendada' && lead.meeting_date && (
           <div className="flex items-center gap-1 text-xs text-blue-700 bg-blue-50 p-2 rounded border border-blue-200">

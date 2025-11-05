@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Lead, LeadStatus, LeadTag } from '@/lib/types';
+import { Lead, LeadStatus, LeadTag, User } from '@/lib/types';
+import { useAuth } from '@/lib/auth-context';
 import {
   Dialog,
   DialogContent,
@@ -30,6 +31,8 @@ const statusLabels = {
 };
 
 export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStatus, editingLead }: AddLeadModalProps) {
+  const { user: currentUser } = useAuth();
+  const [users, setUsers] = useState<User[]>([]);
   const formatDateForInput = (dateString: string | null | undefined) => {
     if (!dateString) return '';
     try {
@@ -58,8 +61,29 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
     observacoes: editingLead?.observacoes || '',
     status: editingLead?.status || initialStatus,
     tag: (editingLead?.tag as LeadTag) || 'morno',
-    meeting_date: formatDateForInput(editingLead?.meeting_date)
+    meeting_date: formatDateForInput(editingLead?.meeting_date),
+    // Sempre atribuir o usuário atual como criador do lead; evitar null no select
+    user_id: editingLead?.user_id ?? (currentUser?.id ?? '')
   });
+
+  // Load users on component mount
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch('/api/users');
+        if (response.ok) {
+          const usersData = await response.json();
+          setUsers(usersData);
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      }
+    };
+    
+    if (isOpen) {
+      fetchUsers();
+    }
+  }, [isOpen]);
 
   // Update form when editingLead changes
   useEffect(() => {
@@ -72,7 +96,8 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
         observacoes: editingLead.observacoes || '',
         status: editingLead.status,
         tag: editingLead.tag as LeadTag,
-        meeting_date: formatDateForInput(editingLead.meeting_date)
+        meeting_date: formatDateForInput(editingLead.meeting_date),
+        user_id: editingLead.user_id ?? ''
       });
     } else {
       setFormData({
@@ -83,7 +108,9 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
         observacoes: '',
         status: initialStatus,
         tag: 'morno',
-        meeting_date: ''
+        meeting_date: '',
+        // Em criação, sempre usar o ID do usuário atual; evitar null para o select
+        user_id: currentUser?.id ?? ''
       });
     }
   }, [editingLead, initialStatus]);
@@ -99,9 +126,13 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
       // Clean up the data before sending
       const submitData = {
         ...formData,
-        // Ensure meeting_date is properly formatted or null
+        // Garantir que o user_id enviado ao backend seja numérico ou null
+        user_id: typeof formData.user_id === 'number' 
+          ? formData.user_id 
+          : (currentUser?.id ?? null),
+        // Garantir que meeting_date seja corretamente formatado ou nulo
         meeting_date: formData.meeting_date ? formData.meeting_date : null,
-        // Ensure data_primeiro_contato is properly formatted
+        // Garantir que data_primeiro_contato esteja corretamente formatada
         data_primeiro_contato: formData.data_primeiro_contato || new Date().toISOString().split('T')[0]
       };
       
@@ -115,6 +146,21 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
 
       if (response.ok) {
         onLeadAdded();
+        
+        // Clear form data after successful creation (only for new leads, not edits)
+        if (!editingLead) {
+          setFormData({
+            nome: '',
+            nicho: '',
+            contato: '',
+            data_primeiro_contato: new Date().toISOString().split('T')[0],
+            observacoes: '',
+            status: initialStatus,
+            tag: 'morno',
+            meeting_date: '',
+            user_id: currentUser?.id ?? ''
+          });
+        }
       } else {
         const errorData = await response.text();
         console.error('Failed to save lead:', response.status, errorData);
@@ -174,13 +220,21 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Contato
               </label>
-              <input
-                type="text"
+              <select
                 value={formData.contato}
                 onChange={(e) => setFormData({ ...formData, contato: e.target.value })}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                placeholder="WhatsApp, Instagram, email"
-              />
+              >
+                <option value="">Selecione o meio de contato</option>
+                <option value="WhatsApp">📱 WhatsApp</option>
+                <option value="Instagram">📸 Instagram</option>
+                <option value="Email">📧 Email</option>
+                <option value="Facebook">📘 Facebook</option>
+                <option value="LinkedIn">💼 LinkedIn</option>
+                <option value="Telefone">☎️ Telefone</option>
+                <option value="Site">🌐 Site</option>
+                <option value="Indicação">🤝 Indicação</option>
+              </select>
             </div>
 
             <div>
@@ -197,7 +251,28 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+            {currentUser?.role === 'gestor' && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  👤 Responsável
+                </label>
+                <select
+                  value={formData.user_id}
+                  onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  required
+                >
+                  <option value="">Selecione o responsável</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.nome} ({user.role === 'gestor' ? '👑 Gestor' : '👨‍💼 Vendedor'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className={currentUser?.role === 'gestor' ? '' : 'md:col-span-2'}>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Status
               </label>
@@ -211,7 +286,9 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
                 ))}
               </select>
             </div>
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 🌡️ Prioridade

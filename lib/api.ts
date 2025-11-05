@@ -1,11 +1,34 @@
 import pool from './database';
 import { Lead, LeadStatus, LeadTag } from './types';
 
-export const getLeads = async (): Promise<Lead[]> => {
+export const getLeads = async (userId?: number, userRole?: string): Promise<Lead[]> => {
   const client = await pool.connect();
   try {
-    const result = await client.query('SELECT * FROM leads ORDER BY created_at DESC');
-    return result.rows;
+    let query = `
+      SELECT l.*, u.nome as user_name, u.role as user_role
+      FROM leads l
+      LEFT JOIN users u ON l.user_id = u.id
+    `;
+    
+    let params: any[] = [];
+    
+    // If user is not a gestor, filter by their leads only
+    if (userId && userRole !== 'gestor') {
+      query += ` WHERE l.user_id = $1`;
+      params.push(userId);
+    }
+    
+    query += ` ORDER BY l.created_at DESC`;
+    
+    const result = await client.query(query, params);
+    return result.rows.map(row => ({
+      ...row,
+      user: row.user_name ? {
+        id: row.user_id,
+        nome: row.user_name,
+        role: row.user_role
+      } : undefined
+    }));
   } finally {
     client.release();
   }
@@ -18,12 +41,28 @@ export const createLead = async (lead: Omit<Lead, 'id' | 'created_at' | 'updated
     const meetingDate = lead.meeting_date ? new Date(lead.meeting_date).toISOString() : null;
     
     const result = await client.query(
-      `INSERT INTO leads (nome, nicho, contato, data_primeiro_contato, observacoes, status, tag, meeting_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO leads (nome, nicho, contato, data_primeiro_contato, observacoes, status, tag, meeting_date, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [lead.nome, lead.nicho, lead.contato, lead.data_primeiro_contato, lead.observacoes, lead.status, lead.tag, meetingDate]
+      [lead.nome, lead.nicho, lead.contato, lead.data_primeiro_contato, lead.observacoes, lead.status, lead.tag, meetingDate, lead.user_id || null]
     );
-    return result.rows[0];
+    const newLead = result.rows[0];
+    // Enriquecer o retorno com dados do usuário criador para exibição imediata
+    let user: { id: number; nome: string; role: string } | undefined;
+    if (newLead.user_id) {
+      const userRes = await client.query(
+        `SELECT id, nome, role FROM users WHERE id = $1`,
+        [newLead.user_id]
+      );
+      if (userRes.rows[0]) {
+        user = {
+          id: userRes.rows[0].id,
+          nome: userRes.rows[0].nome,
+          role: userRes.rows[0].role,
+        };
+      }
+    }
+    return { ...newLead, user } as Lead;
   } finally {
     client.release();
   }

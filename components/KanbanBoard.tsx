@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { Lead, LeadStatus } from '@/lib/types';
-import { Filter, X } from 'lucide-react';
+import { Lead, LeadStatus, User } from '@/lib/types';
+import { Filter, X, Settings, LogOut, User as UserIcon } from 'lucide-react';
+import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
 import DroppableColumn from './DroppableColumn';
 import AddLeadModal from './AddLeadModal';
 import WhatsAppCampaign from './WhatsAppCampaign';
@@ -30,6 +32,7 @@ const createColumnsFromLeads = (leads: Lead[]) => {
 };
 
 const Kanban = () => {
+  const { user, logout } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedNicho, setSelectedNicho] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,14 +40,35 @@ const Kanban = () => {
   const [modalStatus, setModalStatus] = useState<LeadStatus>('lista_leads');
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [isCampaignOpen, setIsCampaignOpen] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<number | ''>('');
 
   useEffect(() => {
     fetchLeads();
-  }, []);
+    fetchUsers();
+  }, [user]);
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch('/api/users');
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
 
   const fetchLeads = async () => {
     try {
-      const response = await fetch('/api/leads');
+      const headers: HeadersInit = {};
+      if (user) {
+        headers['x-user-id'] = user.id.toString();
+        headers['x-user-role'] = user.role;
+      }
+      
+      const response = await fetch('/api/leads', { headers });
       if (response.ok) {
         const data = await response.json();
         setLeads(data);
@@ -170,13 +194,14 @@ const Kanban = () => {
 
   const getLeadsByStatus = (status: LeadStatus) => {
     let filteredLeads = leads.filter(lead => lead.status === status);
-    
     if (selectedNicho) {
       filteredLeads = filteredLeads.filter(lead => 
         lead.nicho?.toLowerCase() === selectedNicho.toLowerCase()
       );
     }
-    
+    if (selectedUserId !== '') {
+      filteredLeads = filteredLeads.filter(lead => lead.user_id === selectedUserId);
+    }
     return filteredLeads;
   };
 
@@ -241,9 +266,44 @@ const Kanban = () => {
               <p className="text-gray-600">
                 Gerencie seu funil de vendas de forma visual e eficiente
               </p>
+              {user && (
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 rounded-full">
+                    <UserIcon className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-800">
+                      {user.nome} ({user.role === 'gestor' ? '👑 Gestor' : '👨‍💼 Vendedor'})
+                    </span>
+                  </div>
+                  {user.role !== 'gestor' && (
+                    <div className="px-3 py-1 bg-green-100 rounded-full">
+                      <span className="text-sm font-medium text-green-800">
+                        Meta: {user.meta_diaria} leads/dia
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             
             <div className="flex gap-3">
+              {user?.role === 'gestor' && (
+                <Link
+                  href="/admin"
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl font-medium"
+                >
+                  <Settings className="w-5 h-5" />
+                  Admin
+                </Link>
+              )}
+              
+              <button
+                onClick={logout}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-lg hover:shadow-xl font-medium"
+              >
+                <LogOut className="w-5 h-5" />
+                Sair
+              </button>
+              
               <button
                 onClick={() => setIsCampaignOpen(true)}
                 disabled={getLeadsByStatus('lista_leads').length === 0}
@@ -353,6 +413,31 @@ const Kanban = () => {
             </div>
           </div>
         )}
+        {/* Filtro por usuário */}
+        <div className="bg-white border-t border-gray-200 px-6 py-4">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* Filtro por usuário */}
+              <div className="flex items-center gap-2">
+                <UserIcon className="w-4 h-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Filtrar por usuário:</span>
+              </div>
+              <select
+                value={selectedUserId}
+                onChange={e => setSelectedUserId(e.target.value === '' ? '' : Number(e.target.value))}
+                className="px-3 py-1 rounded-full text-sm font-medium border border-gray-300"
+                style={{ minWidth: 160 }}
+              >
+                <option value="">Todos</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>{u.nome}</option>
+                ))}
+              </select>
+              {/* Filtro por nicho (mantém o código existente) */}
+              </div>
+            </div>
+          </div>
+        )
       </div>
 
       {/* Kanban Board */}

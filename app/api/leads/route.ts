@@ -2,10 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getLeads, createLead } from '@/lib/api';
 import { initDatabase } from '@/lib/database';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await initDatabase();
-    const leads = await getLeads();
+    
+    // Get user info from headers (set by frontend)
+    const userId = request.headers.get('x-user-id');
+    const userRole = request.headers.get('x-user-role');
+    
+    const leads = await getLeads(
+      userId ? parseInt(userId) : undefined,
+      userRole || undefined
+    );
     return NextResponse.json(leads);
   } catch (error) {
     console.error('Error fetching leads:', error);
