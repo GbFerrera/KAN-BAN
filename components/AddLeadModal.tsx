@@ -33,6 +33,8 @@ const statusLabels = {
 export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStatus, editingLead }: AddLeadModalProps) {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
+  const [availableNichos, setAvailableNichos] = useState<string[]>([]);
+  const [showCustomNicho, setShowCustomNicho] = useState(false);
   const formatDateForInput = (dateString: string | null | undefined) => {
     if (!dateString) return '';
     try {
@@ -44,12 +46,25 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
   };
 
   const formatDateOnly = (dateString: string | null | undefined) => {
-    if (!dateString) return new Date().toISOString().split('T')[0];
+    if (!dateString) {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
     try {
-      const date = new Date(dateString);
-      return date.toISOString().split('T')[0];
+      const date = new Date(dateString + 'T00:00:00');
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     } catch {
-      return new Date().toISOString().split('T')[0];
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     }
   };
 
@@ -66,7 +81,14 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
     user_id: editingLead?.user_id ?? (currentUser?.id ?? '')
   });
 
-  // Load users on component mount
+  // Nichos predefinidos
+  const predefinedNichos = [
+    'Restaurante', 'Clínica', 'E-commerce', 'Consultoria', 'Tecnologia',
+    'Educação', 'Imobiliária', 'Beleza', 'Fitness', 'Advocacia',
+    'Contabilidade', 'Marketing', 'Arquitetura', 'Odontologia', 'Veterinária'
+  ];
+
+  // Load users and existing nichos on component mount
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -79,9 +101,28 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
         console.error('Error fetching users:', error);
       }
     };
+
+    const fetchExistingNichos = async () => {
+      try {
+        const response = await fetch('/api/leads/nichos');
+        if (response.ok) {
+          const existingNichos = await response.json();
+          // Combinar nichos predefinidos com os existentes, removendo duplicatas
+          const allNichos = [...new Set([...predefinedNichos, ...existingNichos])];
+          setAvailableNichos(allNichos.sort());
+        } else {
+          // Se a API não existir ainda, usar apenas os predefinidos
+          setAvailableNichos(predefinedNichos);
+        }
+      } catch (error) {
+        console.error('Error fetching existing nichos:', error);
+        setAvailableNichos(predefinedNichos);
+      }
+    };
     
     if (isOpen) {
       fetchUsers();
+      fetchExistingNichos();
     }
   }, [isOpen]);
 
@@ -104,7 +145,13 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
         nome: '',
         nicho: '',
         contato: '',
-        data_primeiro_contato: new Date().toISOString().split('T')[0],
+        data_primeiro_contato: (() => {
+          const today = new Date();
+          const year = today.getFullYear();
+          const month = String(today.getMonth() + 1).padStart(2, '0');
+          const day = String(today.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        })(),
         observacoes: '',
         status: initialStatus,
         tag: 'morno',
@@ -133,7 +180,13 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
         // Garantir que meeting_date seja corretamente formatado ou nulo
         meeting_date: formData.meeting_date ? formData.meeting_date : null,
         // Garantir que data_primeiro_contato esteja corretamente formatada
-        data_primeiro_contato: formData.data_primeiro_contato || new Date().toISOString().split('T')[0]
+        data_primeiro_contato: formData.data_primeiro_contato || (() => {
+          const today = new Date();
+          const year = today.getFullYear();
+          const month = String(today.getMonth() + 1).padStart(2, '0');
+          const day = String(today.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        })()
       };
       
       console.log('Submitting data:', submitData); // Debug log
@@ -153,7 +206,13 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
             nome: '',
             nicho: '',
             contato: '',
-            data_primeiro_contato: new Date().toISOString().split('T')[0],
+            data_primeiro_contato: (() => {
+              const today = new Date();
+              const year = today.getFullYear();
+              const month = String(today.getMonth() + 1).padStart(2, '0');
+              const day = String(today.getDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+            })(),
             observacoes: '',
             status: initialStatus,
             tag: 'morno',
@@ -205,13 +264,51 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Nicho
               </label>
-              <input
-                type="text"
-                value={formData.nicho}
-                onChange={(e) => setFormData({ ...formData, nicho: e.target.value })}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                placeholder="ex: restaurante, clínica, e-commerce"
-              />
+              {!showCustomNicho ? (
+                <div className="space-y-2">
+                  <select
+                    value={formData.nicho}
+                    onChange={(e) => {
+                      if (e.target.value === 'custom') {
+                        setShowCustomNicho(true);
+                        setFormData({ ...formData, nicho: '' });
+                      } else {
+                        setFormData({ ...formData, nicho: e.target.value });
+                      }
+                    }}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  >
+                    <option value="">Selecione um nicho</option>
+                    {availableNichos.map((nicho) => (
+                      <option key={nicho} value={nicho}>
+                        {nicho}
+                      </option>
+                    ))}
+                    <option value="custom">✏️ Outro (personalizado)</option>
+                  </select>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={formData.nicho}
+                    onChange={(e) => setFormData({ ...formData, nicho: e.target.value })}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    placeholder="Digite o nicho personalizado"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCustomNicho(false);
+                      setFormData({ ...formData, nicho: '' });
+                    }}
+                    className="text-sm text-gray-600 hover:text-gray-800 underline"
+                  >
+                    ← Voltar para lista predefinida
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

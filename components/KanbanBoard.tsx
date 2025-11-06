@@ -215,6 +215,27 @@ const Kanban = () => {
     return [...new Set(nichos)].sort();
   };
 
+  // Função para obter ícone do nicho
+  const getNichoIcon = (nicho: string) => {
+    const nichoLower = nicho.toLowerCase();
+    if (nichoLower.includes('restaurante') || nichoLower.includes('food')) return '🍽️';
+    if (nichoLower.includes('clínica') || nichoLower.includes('saúde') || nichoLower.includes('médic')) return '🏥';
+    if (nichoLower.includes('e-commerce') || nichoLower.includes('loja') || nichoLower.includes('venda')) return '🛒';
+    if (nichoLower.includes('consultoria') || nichoLower.includes('consult')) return '💼';
+    if (nichoLower.includes('tecnologia') || nichoLower.includes('tech') || nichoLower.includes('software')) return '💻';
+    if (nichoLower.includes('educação') || nichoLower.includes('escola') || nichoLower.includes('curso')) return '📚';
+    if (nichoLower.includes('imobiliária') || nichoLower.includes('imóvel') || nichoLower.includes('casa')) return '🏠';
+    if (nichoLower.includes('beleza') || nichoLower.includes('estética') || nichoLower.includes('salão')) return '💄';
+    if (nichoLower.includes('fitness') || nichoLower.includes('academia') || nichoLower.includes('exercício')) return '💪';
+    if (nichoLower.includes('advocacia') || nichoLower.includes('advogad') || nichoLower.includes('jurídic')) return '⚖️';
+    if (nichoLower.includes('contabilidade') || nichoLower.includes('contador')) return '📊';
+    if (nichoLower.includes('marketing') || nichoLower.includes('publicidade')) return '📈';
+    if (nichoLower.includes('arquitetura') || nichoLower.includes('arquitet')) return '🏗️';
+    if (nichoLower.includes('odontologia') || nichoLower.includes('dentista')) return '🦷';
+    if (nichoLower.includes('veterinária') || nichoLower.includes('pet') || nichoLower.includes('animal')) return '🐾';
+    return '🏢'; // Ícone padrão para outros nichos
+  };
+
   const getTotalLeads = () => leads.length;
   const getClosedLeads = () => leads.filter(lead => lead.status === 'fechados').length;
   const getLostLeads = () => leads.filter(lead => lead.status === 'perdidos').length;
@@ -389,13 +410,14 @@ const Kanban = () => {
                     <button
                       key={nicho}
                       onClick={() => setSelectedNicho(nicho)}
-                      className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                      className={`px-3 py-1 rounded-full text-sm font-medium transition-colors flex items-center gap-1 ${
                         selectedNicho === nicho
                           ? 'bg-blue-500 text-white'
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
-                      {nicho}
+                      <span>{getNichoIcon(nicho)}</span>
+                      <span>{nicho}</span>
                     </button>
                   ))}
                 </div>

@@ -68,8 +68,42 @@ export default function LeadCard({ lead, onUpdate, onDelete }: LeadCardProps) {
       case 'Telefone': return '☎️';
       case 'Site': return '🌐';
       case 'Indicação': return '🤝';
-      default: return <Phone className="w-3 h-3" />;
+      default: return '📞';
     }
+  };
+
+  const getNichoIcon = (nicho: string) => {
+    const nichoLower = nicho.toLowerCase();
+    if (nichoLower.includes('restaurante') || nichoLower.includes('food')) return '🍽️';
+    if (nichoLower.includes('clínica') || nichoLower.includes('saúde') || nichoLower.includes('médic')) return '🏥';
+    if (nichoLower.includes('e-commerce') || nichoLower.includes('loja') || nichoLower.includes('venda')) return '🛒';
+    if (nichoLower.includes('consultoria') || nichoLower.includes('consult')) return '💼';
+    if (nichoLower.includes('tecnologia') || nichoLower.includes('tech') || nichoLower.includes('software')) return '💻';
+    if (nichoLower.includes('educação') || nichoLower.includes('escola') || nichoLower.includes('curso')) return '📚';
+    if (nichoLower.includes('imobiliária') || nichoLower.includes('imóvel') || nichoLower.includes('casa')) return '🏠';
+    if (nichoLower.includes('beleza') || nichoLower.includes('estética') || nichoLower.includes('salão')) return '💄';
+    if (nichoLower.includes('fitness') || nichoLower.includes('academia') || nichoLower.includes('exercício')) return '💪';
+    if (nichoLower.includes('advocacia') || nichoLower.includes('advogad') || nichoLower.includes('jurídic')) return '⚖️';
+    if (nichoLower.includes('contabilidade') || nichoLower.includes('contador')) return '📊';
+    if (nichoLower.includes('marketing') || nichoLower.includes('publicidade')) return '📈';
+    if (nichoLower.includes('arquitetura') || nichoLower.includes('arquitet')) return '🏗️';
+    if (nichoLower.includes('odontologia') || nichoLower.includes('dentista')) return '🦷';
+    if (nichoLower.includes('veterinária') || nichoLower.includes('pet') || nichoLower.includes('animal')) return '🐾';
+    return '🏢'; // Ícone padrão para outros nichos
+  };
+
+  const getNichoStyle = (nicho: string) => {
+    const nichoLower = nicho.toLowerCase();
+    if (nichoLower.includes('restaurante')) return 'bg-red-50 text-red-700 border-red-200';
+    if (nichoLower.includes('clínica') || nichoLower.includes('saúde')) return 'bg-green-50 text-green-700 border-green-200';
+    if (nichoLower.includes('e-commerce') || nichoLower.includes('loja')) return 'bg-blue-50 text-blue-700 border-blue-200';
+    if (nichoLower.includes('consultoria')) return 'bg-purple-50 text-purple-700 border-purple-200';
+    if (nichoLower.includes('tecnologia')) return 'bg-cyan-50 text-cyan-700 border-cyan-200';
+    if (nichoLower.includes('educação')) return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+    if (nichoLower.includes('imobiliária')) return 'bg-lime-50 text-lime-700 border-lime-200';
+    if (nichoLower.includes('beleza')) return 'bg-pink-50 text-pink-700 border-pink-200';
+    if (nichoLower.includes('fitness')) return 'bg-orange-50 text-orange-700 border-orange-200';
+    return 'bg-gray-50 text-gray-700 border-gray-200'; // Estilo padrão
   };
 
   const handleStatusChange = (newStatus: LeadStatus) => {
@@ -242,9 +276,11 @@ export default function LeadCard({ lead, onUpdate, onDelete }: LeadCardProps) {
       
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
-            {lead.nicho}
-          </span>
+          {lead.nicho && (
+            <span className={`text-xs px-2 py-1 rounded border ${getNichoStyle(lead.nicho)}`}>
+              {getNichoIcon(lead.nicho)} {lead.nicho}
+            </span>
+          )}
           <span className={`text-xs px-2 py-1 rounded border ${tagColors[lead.tag]}`}>
             {lead.tag === 'quente' && '🔥'} 
             {lead.tag === 'morno' && '🟡'} 
@@ -259,7 +295,10 @@ export default function LeadCard({ lead, onUpdate, onDelete }: LeadCardProps) {
         </div>
         
         <div className="text-xs text-gray-500">
-          1º contato: {new Date(lead.data_primeiro_contato).toLocaleDateString('pt-BR')}
+          1º contato: {(() => {
+            const date = new Date(lead.data_primeiro_contato + 'T00:00:00');
+            return date.toLocaleDateString('pt-BR');
+          })()}
         </div>
         
         {lead.user && (

@@ -6,7 +6,13 @@ import { Calendar, Target, TrendingUp, Users } from 'lucide-react';
 
 export default function DailyMetrics() {
   const [metrics, setMetrics] = useState<DailyMetricsType[]>([]);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<number | ''>('');
   const [loading, setLoading] = useState(true);
