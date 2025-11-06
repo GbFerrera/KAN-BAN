@@ -172,7 +172,7 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-900">
             {editingLead ? '✏️ Editar Lead' : '✨ Adicionar Novo Lead'}
@@ -185,7 +185,7 @@ export default function AddLeadModal({ isOpen, onClose, onLeadAdded, initialStat
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 px-1">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
